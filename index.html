@@ -2,36 +2,115 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>WebKit Memory Researcher - PS5 v13.00</title>
+    <title>PS5 Research Lab v2.5 - INVESTIGACIÓN</title>
     <style>
-        body { background: #0a0a0a; color: #00d4ff; font-family: 'Consolas', monospace; padding: 20px; }
+        body { background: #0a0a0a; color: #00ff41; font-family: 'Courier New', monospace; padding: 20px; }
         #log { 
-            background: #000; border: 1px solid #00d4ff; height: 450px; 
-            overflow-y: scroll; padding: 15px; margin-bottom: 15px;
-            font-size: 13px; color: #00ff00;
+            background: #000; border: 1px solid #00ff41; height: 450px; 
+            overflow-y: scroll; padding: 15px; margin-bottom: 20px;
+            white-space: pre-wrap; font-size: 12px; color: #0f0;
         }
-        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         button { 
-            background: #111; color: #00d4ff; border: 1px solid #00d4ff; 
-            padding: 12px; cursor: pointer; font-weight: bold;
+            background: #111; color: #00ff41; border: 1px solid #00ff41; 
+            padding: 15px; cursor: pointer; font-weight: bold;
         }
-        button:hover { background: #00d4ff; color: #000; }
-        .danger { border-color: #ff4444; color: #ff4444; }
-        .danger:hover { background: #ff4444; color: #fff; }
+        button:hover { background: #00ff41; color: #000; }
+        .version-tag { color: #555; font-size: 10px; text-align: right; }
     </style>
 </head>
 <body>
-    <h2>PS5 WebKit Research Tool</h2>
-    <div id="log">>> Sistema cargado. Listo para escaneo de memoria...</div>
+    <h2>🎮 PS5 WEBKIT RESEARCH LAB</h2>
+    <div class="version-tag">Build: 2026-04-13_V2.5</div>
+    
+    <div id="log">>> Cargando sistema de logs...</div>
 
-    <div class="controls">
-        <button onclick="Research.sprayBuffers()">1. Spray ArrayBuffers (Stabilize)</button>
-        <button onclick="Research.testUAF()">2. Test Use-After-Free (UAF)</button>
-        <button onclick="Research.searchLeakedPointers()">3. Search Pointer Leaks</button>
-        <button onclick="Research.stressJIT()" class="danger">4. Stress JIT Compiler</button>
-        <button onclick="location.reload()">Reiniciar Entorno</button>
+    <div class="grid">
+        <button onclick="Lab.spray()">1. HEAP SPRAY (300MB)</button>
+        <button onclick="Lab.testUAF()">2. TRIGGER UAF TEST</button>
+        <button onclick="Lab.scan800()">3. SCAN PUNTEROS 0x800</button>
+        <button onclick="Lab.leakCheck()">4. LEAK CHECK (EXPERIMENTAL)</button>
+        <button onclick="Lab.clearLog()">LIMPIAR CONSOLA</button>
+        <button onclick="location.reload()" style="border-color:#f00; color:#f00;">FORZAR RECARGA</button>
     </div>
 
-    <script src="research.js"></script>
+    <script>
+        // Sistema de protección para que el log siempre funcione
+        const Lab = {
+            blobs: [],
+            log: function(msg) {
+                const l = document.getElementById('log');
+                if(!l) { console.error(msg); return; }
+                l.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+                l.scrollTop = l.scrollHeight;
+            },
+
+            clearLog: function() {
+                document.getElementById('log').textContent = ">> Consola limpia.\n";
+            },
+
+            spray: function() {
+                this.log("Iniciando Heap Spray agresivo...");
+                try {
+                    for(let i=0; i<300; i++) {
+                        let b = new Uint32Array(1024 * 256); 
+                        b.fill(0x41414141); 
+                        this.blobs.push(b);
+                    }
+                    this.log("✓ Spray de 300MB completado. RAM estresada.");
+                } catch(e) { this.log("✗ Fallo en Spray: " + e.message); }
+            },
+
+            testUAF: function() {
+                this.log("Iniciando Test UAF...");
+                let target = { ptr: new Uint32Array(10).fill(0x1337) };
+                let backup = target; 
+                target = null; 
+                
+                // Intentamos engañar al Garbage Collector
+                for(let i=0; i<10000; i++) { let temp = { garbage: i }; }
+
+                if(backup && backup.ptr[0] === 0x1337) {
+                    this.log("✓ PERSISTENCIA DETECTADA: El objeto sigue en RAM.");
+                } else {
+                    this.log("✗ OBJETO LIMPIADO.");
+                }
+            },
+
+            scan800: function() {
+                this.log("Escaneando direcciones de librerías (0x800...)...");
+                let count = 0;
+                this.blobs.forEach((buf, idx) => {
+                    for(let i=0; i<buf.length; i++) {
+                        let val = buf[i];
+                        if(val >= 0x80000000 && val <= 0x8FFFFFFF) {
+                            this.log(`!!! LEAK: Bloque ${idx} -> 0x${val.toString(16)}`);
+                            count++;
+                        }
+                    }
+                });
+                if(count === 0) this.log("✗ No se encontraron punteros filtrados.");
+            },
+
+            leakCheck: function() {
+                this.log("Buscando anomalías de memoria...");
+                // Buscamos cualquier cosa que NO sea nuestro 0x41414141
+                let anomalies = 0;
+                this.blobs.slice(0, 10).forEach((buf, idx) => {
+                    if(buf[0] !== 0x41414141) {
+                        this.log(`!!! ANOMALÍA en Bloque ${idx}: 0x${buf[0].toString(16)}`);
+                        anomalies++;
+                    }
+                });
+                if(anomalies === 0) this.log("Memoria íntegra.");
+            }
+        };
+
+        // Verificación de inicio
+        window.onload = () => {
+            Lab.log("Laboratorio de Investigación Iniciado.");
+            Lab.log("Navegador: " + navigator.userAgent);
+        };
+    </script>
 </body>
 </html>
