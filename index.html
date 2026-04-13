@@ -2,96 +2,36 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PS5 File Explorer</title>
+    <title>WebKit Memory Researcher - PS5 v13.00</title>
     <style>
-        body {
-            font-family: monospace;
-            background: #000;
-            color: #0f0;
-            padding: 20px;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-        h1 { color: #0f0; border-bottom: 2px solid #0f0; padding-bottom: 10px; }
-        .status { padding: 10px; margin: 10px 0; border: 1px solid #0f0; }
-        .status.error { border-color: #f00; color: #f00; }
-        .status.success { border-color: #0f0; color: #0f0; }
-        .status.info { border-color: #0ff; color: #0ff; }
+        body { background: #0a0a0a; color: #00d4ff; font-family: 'Consolas', monospace; padding: 20px; }
         #log { 
-            border: 1px solid #0f0; 
-            padding: 15px; 
-            height: 400px; 
-            overflow-y: auto; 
-            background: #111;
-            margin: 20px 0;
-            white-space: pre-wrap;
-            word-break: break-all;
+            background: #000; border: 1px solid #00d4ff; height: 450px; 
+            overflow-y: scroll; padding: 15px; margin-bottom: 15px;
+            font-size: 13px; color: #00ff00;
         }
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         button { 
-            background: #0f0; 
-            color: #000; 
-            padding: 10px 20px; 
-            border: none; 
-            cursor: pointer; 
-            margin: 5px;
-            font-weight: bold;
+            background: #111; color: #00d4ff; border: 1px solid #00d4ff; 
+            padding: 12px; cursor: pointer; font-weight: bold;
         }
-        button:hover { background: #00ff00; }
-        .button-group { margin: 20px 0; }
-        input[type="text"] {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            background: #222;
-            color: #0f0;
-            border: 1px solid #0f0;
-            font-family: monospace;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-        }
-        table td, table th {
-            border: 1px solid #0f0;
-            padding: 8px;
-            text-align: left;
-        }
-        table th {
-            background: #0f0;
-            color: #000;
-            font-weight: bold;
-        }
-        .file { cursor: pointer; color: #0f0; }
-        .file:hover { text-decoration: underline; }
+        button:hover { background: #00d4ff; color: #000; }
+        .danger { border-color: #ff4444; color: #ff4444; }
+        .danger:hover { background: #ff4444; color: #fff; }
     </style>
 </head>
 <body>
-    <h1>🎮 PS5 File Explorer (Jailbreak Edition)</h1>
-    
-    <div class="status info">
-        Intento de lectura de archivos del sistema PS5 desde el navegador
+    <h2>PS5 WebKit Research Tool</h2>
+    <div id="log">>> Sistema cargado. Listo para escaneo de memoria...</div>
+
+    <div class="controls">
+        <button onclick="Research.sprayBuffers()">1. Spray ArrayBuffers (Stabilize)</button>
+        <button onclick="Research.testUAF()">2. Test Use-After-Free (UAF)</button>
+        <button onclick="Research.searchLeakedPointers()">3. Search Pointer Leaks</button>
+        <button onclick="Research.stressJIT()" class="danger">4. Stress JIT Compiler</button>
+        <button onclick="location.reload()">Reiniciar Entorno</button>
     </div>
 
-    <div class="button-group">
-        <button onclick="explorarRaiz()">Explorar /</button>
-        <button onclick="explorarDev()">Explorar /dev</button>
-        <button onclick="explorarHome()">Explorar /home</button>
-        <button onclick="explorarTmp()">Explorar /tmp</button>
-        <button onclick="explorarSys()">Explorar /sys</button>
-        <button onclick="explorarProc()">Explorar /proc</button>
-        <button onclick="testWebAssembly()">Test WebAssembly</button>
-        <button onclick="limpiarLog()">Limpiar Log</button>
-    </div>
-
-    <div>
-        <input type="text" id="pathInput" placeholder="Ingresa una ruta personalizada ej: /mnt/usb, /media, etc">
-        <button onclick="explorarRuta()">Explorar Ruta</button>
-    </div>
-
-    <div id="log">Iniciando explorador de archivos PS5...</div>
-
-    <script src="explorer.js"></script>
+    <script src="research.js"></script>
 </body>
 </html>
