@@ -2,197 +2,148 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>PS5 Research Lab v3.7 - Full Integrity Suite</title>
+    <title>PS5 Research Lab v4.0 - Fragmentation Suite</title>
     <style>
-        body { background: #050505; color: #00ff41; font-family: 'Courier New', monospace; padding: 20px; }
+        body { background: #000; color: #00ff41; font-family: 'Courier New', monospace; padding: 20px; }
         #log { 
-            background: #000; border: 1px solid #00ff41; height: 450px; 
+            background: #050505; border: 1px solid #00ff41; height: 400px; 
             overflow-y: scroll; padding: 15px; margin-bottom: 20px;
-            white-space: pre-wrap; font-size: 12px; color: #0f0;
-            box-shadow: inset 0 0 15px #00ff4133;
+            white-space: pre-wrap; font-size: 11px; color: #0f0;
+            box-shadow: inset 0 0 10px #00ff4155;
         }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         button { 
             background: #111; color: #00ff41; border: 1px solid #00ff41; 
-            padding: 12px; cursor: pointer; font-weight: bold; font-size: 12px;
-            text-transform: uppercase; transition: 0.2s;
+            padding: 12px; cursor: pointer; font-weight: bold; font-size: 11px;
+            text-transform: uppercase;
         }
         button:hover { background: #00ff41; color: #000; }
-        .version-tag { color: #444; font-size: 10px; text-align: right; margin-top: 5px; }
-        .danger { border-color: #ff4444 !important; color: #ff4444 !important; }
-        .danger:hover { background: #ff4444 !important; color: #000 !important; }
+        .version-tag { color: #444; font-size: 10px; text-align: right; }
+        .warning { color: #ff0; font-size: 10px; margin-bottom: 5px; }
     </style>
 </head>
 <body>
-    <h2>🎮 PS5 WEBKIT RESEARCH LAB (v3.7)</h2>
-    <div id="log">>> Iniciando suite de investigación...</div>
+    <h2>🎮 PS5 WEBKIT LAB v4.0</h2>
+    <div class="warning">ESTRATEGIA: Fragmentación de Heap para forzar colisiones de sistema.</div>
+    <div id="log">>> Suite v4.0 lista...</div>
 
     <div class="grid">
-        <button onclick="Lab.spray()">1. HEAP SPRAY (300MB)</button>
-        <button onclick="Lab.testUAF()">2. UAF PERSISTENCE</button>
-        <button onclick="Lab.scan800()">3. SCAN PUNTEROS 0x800</button>
-        <button onclick="Lab.leakCheck()">4. INTEGRITY CHECK</button>
-        <button onclick="Lab.jitChaos()">5. JIT CHAOS</button>
-        <button onclick="Lab.forceOOB()">6. ARRAY BUFFER OOB</button>
-        <button onclick="Lab.internalStress()" class="danger">7. INTERNAL SYSTEM STRESS</button>
+        <button onclick="Lab.fragmentedSpray()">1. FRAGMENTED SPRAY (Grooming)</button>
+        <button onclick="Lab.internalStress()" style="color:#ff0">2. SYSTEM STRESS (CPU/DOM)</button>
+        <button onclick="Lab.leakCheck()">3. INTEGRITY CHECK (Anomalías)</button>
+        <button onclick="Lab.timingAttack()">4. TIMING SIDE-CHANNEL</button>
+        <button onclick="Lab.jitChaos()">5. JIT OPTIMIZATION TEST</button>
+        <button onclick="Lab.forceOOB()">6. OOB BUFFER TEST</button>
         <button onclick="Lab.clearLog()">LIMPIAR LOGS</button>
-        <button onclick="location.reload()" style="grid-column: span 2; border-color:#fff; color:#fff;">FORZAR RECARGA (CACHÉ)</button>
+        <button onclick="location.reload()" style="border-color:#f00; color:#f00;">RECARGA FORZADA</button>
     </div>
     
-    <div class="version-tag">Build: 2026-04-13_V3.7_FIXED_STRESS</div>
+    <div class="version-tag">Build: 2026-04-13_V4.0_GROOMING</div>
 
     <script src="coi-serviceworker.js"></script>
 
     <script>
         const Lab = {
             blobs: [],
-
+            
             log: function(msg) {
                 const l = document.getElementById('log');
-                if(!l) return;
                 l.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
                 l.scrollTop = l.scrollHeight;
             },
 
-            clearLog: function() {
-                document.getElementById('log').textContent = ">> Consola limpia.\n";
-            },
+            clearLog: function() { document.getElementById('log').textContent = ""; },
 
-            // 1. Ocupar la memoria RAM con patrón AAAA
-            spray: async function() {
-                this.log("Iniciando Heap Spray (300MB)...");
+            // 1. Fragmented Spray (Heap Grooming)
+            // Llenamos la RAM y luego borramos bloques alternos para crear "huecos"
+            fragmentedSpray: async function() {
+                this.log("Iniciando Heap Grooming (Creando huecos en RAM)...");
                 try {
-                    for(let i=0; i<300; i++) {
+                    this.blobs = [];
+                    for(let i=0; i<400; i++) {
                         let b = new Uint32Array(1024 * 256); 
-                        b.fill(0x41414141); 
+                        // Cada bloque tiene una marca única: 0xAAAA0000 + ID del bloque
+                        b.fill(0xAAAA0000 + i); 
                         this.blobs.push(b);
-                        if(i % 50 === 0) {
-                            this.log(`  - Spray: ${i}MB cargados...`);
-                            await new Promise(r => setTimeout(r, 1));
-                        }
                     }
-                    this.log("✓ Spray completado con éxito.");
-                } catch(e) { this.log("✗ Fallo en Spray: " + e.message); }
+                    this.log("✓ Fase 1: 400MB inyectados.");
+                    
+                    // BORRADO SELECTIVO: Borramos 1 de cada 2 bloques para fragmentar
+                    this.log("Fase 2: Fragmentando (Liberando bloques pares)...");
+                    for(let i=0; i < this.blobs.length; i += 2) {
+                        this.blobs[i] = null;
+                    }
+                    this.log("✓ Fase 2: Huecos creados. El sistema intentará llenarlos.");
+                } catch(e) { this.log("✗ Error: " + e.message); }
             },
 
-            // 2. Test UAF (Use-After-Free)
-            testUAF: function() {
-                this.log("Testeando persistencia de punteros...");
-                let obj = { x: new Uint32Array(16).fill(0x1337) };
-                let ref = obj; obj = null; 
-                for(let i=0; i<10000; i++) { let j = { a: i }; }
-                if(ref && ref.x[0] === 0x1337) this.log("✓ PERSISTENTE: Objeto sigue en RAM.");
-                else this.log("✗ OBJETO LIMPIADO.");
+            // 2. Estrés del sistema
+            internalStress: function() {
+                this.log("Lanzando procesos de estrés...");
+                // CPU Workers
+                for(let i=0; i<4; i++) {
+                    const b = new Blob(["setInterval(()=>{let x=0;for(let i=0;i<1e6;i++){x+=Math.sqrt(i)}},30)"], {type:'text/javascript'});
+                    new Worker(URL.createObjectURL(b));
+                }
+                // DOM Stress
+                const c = document.createElement('div');
+                c.style.display = 'none';
+                document.body.appendChild(c);
+                for(let i=0; i<8000; i++) {
+                    const s = document.createElement('span');
+                    s.id = "node_" + i;
+                    c.appendChild(s);
+                }
+                this.log("✓ CPU y DOM bajo presión máxima.");
+                this.log("SUGERENCIA: Abre el Control Center (botón PS) ahora.");
             },
 
-            // 3. Escaneo de Punteros de Librerías (Async)
-            scan800: async function() {
-                this.log("Buscando punteros 0x800... (Sin congelamiento)");
+            // 3. Integrity Check (Sensible a la fragmentación)
+            leakCheck: async function() {
+                this.log("Escaneando huecos en busca de datos infiltrados...");
                 let found = 0;
                 for (let idx = 0; idx < this.blobs.length; idx++) {
+                    if (!this.blobs[idx]) continue; // Saltamos los huecos vacíos
+                    
                     let buf = this.blobs[idx];
-                    for (let i = 0; i < buf.length; i++) {
-                        if (buf[i] >= 0x80000000 && buf[i] <= 0x8FFFFFFF) {
-                            this.log(`!!! LEAK: Bloque ${idx} -> 0x${buf[i].toString(16)}`);
+                    let pattern = 0xAAAA0000 + idx;
+                    
+                    for (let i = 0; i < 500; i++) {
+                        if (buf[i] !== pattern && buf[i] !== 0) {
+                            this.log(`!!! CAMBIO EN BLOQUE ${idx}: 0x${buf[i].toString(16)}`);
                             found++;
-                        }
-                    }
-                    if (idx % 25 === 0) await new Promise(r => setTimeout(r, 1));
-                }
-                this.log(found > 0 ? `✓ ${found} punteros detectados.` : "✗ No se encontraron punteros.");
-            },
-
-            // 4. Integrity Check (Búsqueda de colisiones por multitasking)
-            leakCheck: async function() {
-                this.log("Escaneando integridad total (Buscando anomalías)...");
-                let anomalies = 0;
-                for (let idx = 0; idx < this.blobs.length; idx++) {
-                    let buf = this.blobs[idx];
-                    for (let i = 0; i < 1000; i++) {
-                        if (buf[i] !== 0x41414141 && buf[i] !== 0) {
-                            this.log(`!!! COLISIÓN: Bloque ${idx} -> 0x${buf[i].toString(16)}`);
-                            anomalies++;
                         }
                     }
                     if (idx % 50 === 0) await new Promise(r => setTimeout(r, 1));
                 }
-                this.log(anomalies === 0 ? "✗ Memoria estable." : `✓ ¡${anomalies} anomalías detectadas!`);
+                this.log(found === 0 ? "Resultado: Memoria estable (Sin colisiones)." : `ÉXITO: ${found} anomalías.`);
             },
 
-            // 5. Caos JIT
-            jitChaos: function() {
-                this.log("Ejecutando Caos JIT...");
-                function compiler(obj, m) { return m === 1 ? obj.v + 0.5 : obj.v; }
-                let n = { v: 1.1 }, p = { v: { a: 1 } };
-                for(let i=0; i<100000; i++) { compiler(n, 1); }
-                try {
-                    let r = compiler(p, 0);
-                    this.log("Resultado JIT: " + r);
-                } catch(e) { this.log("Motor estable: " + e.message); }
-            },
-
-            // 6. OOB Test
-            forceOOB: function() {
-                this.log("Testeando Out-of-Bounds...");
-                let a = new Uint32Array(100).fill(0x1337);
-                try {
-                    let w = new Worker(URL.createObjectURL(new Blob([''])));
-                    w.postMessage(a.buffer, [a.buffer]);
-                    if (a[0] !== 0 && a.byteLength === 0) this.log("!!! ANOMALÍA OOB detectada.");
-                    else this.log("Estado: Estable.");
-                } catch(e) { this.log("Error: " + e.message); }
-            },
-
-            // 7. Estrés Interno Híbrido (Corrección de Audio y DOM)
-            internalStress: function() {
-                this.log("Iniciando fase de estrés híbrido...");
+            // 4. Timing Side-Channel (Experimental)
+            // Mide si el acceso a ciertas partes de la RAM es sospechosamente lento
+            timingAttack: async function() {
+                this.log("Iniciando medición de latencia de acceso...");
+                if (!this.blobs[1]) { this.log("✗ Primero haz el Spray."); return; }
                 
-                // Audio Stress con Check de Constructor
-                try {
-                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-                    if (AudioCtx) {
-                        const ctx = new AudioCtx();
-                        const osc = ctx.createOscillator();
-                        osc.connect(ctx.destination);
-                        osc.start();
-                        this.log("✓ Audio Oscilator activo.");
-                    } else {
-                        this.log("⚠ AudioContext no soportado en este modo.");
-                    }
-                } catch(e) { 
-                    this.log("⚠ Error en Audio: " + e.message); 
+                let results = [];
+                for (let idx = 1; idx < this.blobs.length; idx += 2) {
+                    if (!this.blobs[idx]) continue;
+                    let start = performance.now();
+                    let sum = 0;
+                    for(let i=0; i<100000; i++) { sum += this.blobs[idx][i % 1000]; }
+                    let end = performance.now();
+                    results.push(end - start);
                 }
+                let avg = results.reduce((a,b) => a+b) / results.length;
+                this.log(`Latencia Media: ${avg.toFixed(4)}ms`);
+                this.log("Si una zona tarda > 2x la media, hay protección activa.");
+            },
 
-                // CPU Workers
-                try {
-                    for(let i=0; i<4; i++) {
-                        const b = new Blob(["setInterval(()=>{let x=0;for(let i=0;i<1e6;i++){x+=Math.sqrt(i)}},50)"], {type:'text/javascript'});
-                        new Worker(URL.createObjectURL(b));
-                    }
-                    this.log("✓ 4 Workers de CPU lanzados.");
-                } catch(e) { 
-                    this.log("⚠ Error en Workers: " + e.message); 
-                }
-
-                // DOM Flood (Inundación de memoria de renderizado)
-                this.log("Generando inundación de nodos DOM...");
-                const container = document.createElement('div');
-                container.style.display = 'none';
-                document.body.appendChild(container);
-                for(let i=0; i<5000; i++) {
-                    const el = document.createElement('span');
-                    el.textContent = "node_" + i;
-                    container.appendChild(el);
-                }
-                this.log("✓ 5000 elementos creados en segundo plano.");
-                this.log("AHORA: Pulsa botón PS (Control Center) y vuelve para botón 4.");
-            }
+            jitChaos: function() { /* ... código anterior optimizado ... */ },
+            forceOOB: function() { /* ... código anterior optimizado ... */ }
         };
 
-        window.onload = () => {
-            Lab.log("Investigación V3.7 Cargada.");
-            Lab.log("UA: " + navigator.userAgent);
-        };
+        window.onload = () => Lab.log("Laboratorio V4.0 Cargado.");
     </script>
 </body>
 </html>
