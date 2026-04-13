@@ -1,87 +1,66 @@
-const Research = {
-    buffers: [],
-    
+const AdvancedLab = {
     log: function(msg) {
-        const div = document.getElementById('log');
-        div.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
-        div.scrollTop = div.scrollHeight;
+        const l = document.getElementById('log');
+        l.innerHTML += `<div>[EXPL] ${msg}</div>`;
+        l.scrollTop = l.scrollHeight;
     },
 
-    // 1. Spraying: Llenamos la memoria con buffers para hacerla predecible
-    sprayBuffers: function() {
-        this.log("Iniciando Heap Spray...");
-        try {
-            for (let i = 0; i < 500; i++) {
-                // Creamos buffers de 1MB con una marca (0xDEADBEEF)
-                let b = new ArrayBuffer(1024 * 1024);
-                let view = new Uint32Array(b);
-                view.fill(0xDEADBEEF);
-                this.buffers.push(b);
+    // INTENTO DE UAF REAL:
+    // Usamos un objeto del DOM que WebKit suele gestionar de forma distinta
+    triggerRealUAF: function() {
+        this.log("Iniciando secuencia UAF en DOM...");
+        
+        let div = document.createElement('div');
+        div.id = "target_element";
+        document.body.appendChild(div);
+
+        // Creamos una referencia a una propiedad interna
+        let shadow = div.style; 
+        
+        this.log("Eliminando elemento del DOM...");
+        document.body.removeChild(div);
+        div = null; // Eliminamos la referencia principal
+
+        // Forzamos al GC a limpiar el "cadáver" del div
+        this.log("Forzando presión de memoria para limpiar el 'heap'...");
+        let pressure = [];
+        for(let i=0; i<50000; i++) {
+            pressure.push({ a: i, b: "basura_de_relleno_" + i });
+        }
+        pressure = null;
+
+        // Intentamos acceder a la propiedad del objeto "muerto"
+        setTimeout(() => {
+            try {
+                let check = shadow.cssText;
+                this.log("✓ Acceso tras borrado: " + (typeof check));
+                this.log("Si ves 'undefined' o valores raros, hay fuga de memoria.");
+            } catch(e) {
+                this.log("✗ El motor bloqueó el acceso (Sandbox fuerte).");
             }
-            this.log(`✓ Spray completado: ${this.buffers.length} MB reservados.`);
-        } catch (e) {
-            this.log("✗ Límite alcanzado o Sandbox detectado.");
-        }
+        }, 100);
     },
 
-    // 2. Investigación de Use-After-Free (UAF)
-    // Intentamos liberar un objeto y acceder a él antes de que el GC lo limpie
-    testUAF: function() {
-        this.log("Testeando vulnerabilidad Use-After-Free...");
-        let target = { data: new Uint32Array(100).fill(0x1337) };
+    // ESCÁNER DE DIRECCIONES (El que pediste)
+    // Buscamos patrones de direcciones de memoria de la PS5 (0x800...)
+    scanForPointers: function() {
+        this.log("Escaneando buffers en busca de direcciones 0x800XXXXX...");
         
-        // "Liberamos" la referencia
-        let temp = target;
-        target = null;
-        
-        // Forzamos presión de memoria para intentar activar el Garbage Collector
-        for(let i=0; i<10000; i++) { let junk = { a: i }; }
+        // Creamos un área de inspección
+        let probe = new Uint32Array(1024 * 1024 * 2); // 8MB de escaneo
+        let found = 0;
 
-        // Intentamos ver si 'temp' sigue apuntando a la memoria original
-        if (temp && temp.data[0] === 0x1337) {
-            this.log("✓ Objeto persistente tras GC. Interesante...");
-        } else {
-            this.log("✗ El objeto fue limpiado correctamente.");
-        }
-    },
-
-    // 3. Búsqueda de punteros filtrados (Leaks)
-    // Buscamos valores que parezcan direcciones de memoria (ej: 0x800...)
-    searchLeakedPointers: function() {
-        this.log("Escaneando buffers en busca de fugas de punteros...");
-        let leaks = 0;
-        this.buffers.forEach((b, idx) => {
-            let view = new Uint32Array(b);
-            for(let i=0; i < 100; i++) {
-                // Buscamos valores que no pusimos nosotros (distintos a 0xDEADBEEF)
-                if(view[i] !== 0xDEADBEEF && view[i] !== 0) {
-                    this.log(`!!! Posible Leak en Buffer ${idx}, Offset ${i}: 0x${view[i].toString(16)}`);
-                    leaks++;
-                }
+        for (let i = 0; i < probe.length; i++) {
+            let val = probe[i];
+            
+            // En PS5, muchas direcciones de librerías (.sprx) empiezan por 0x8...
+            // Buscamos valores en el rango 0x80000000 - 0x8FFFFFFF
+            if (val >= 0x80000000 && val <= 0x8FFFFFFF) {
+                this.log(`!!! POSIBLE PUNTERO LEAK: Offset ${i} -> 0x${val.toString(16)}`);
+                found++;
             }
-        });
-        if(leaks === 0) this.log("✗ No se detectaron fugas en este ciclo.");
-    },
-
-    // 4. Estrés del compilador JIT (Just-In-Time)
-    // Intentamos que el motor cambie el tipo de un objeto miles de veces
-    stressJIT: function() {
-        this.log("Iniciando estrés del compilador JIT...");
-        function confuse(obj) {
-            return obj.value;
         }
 
-        let obj1 = { value: 1.1 }; // Tipo: Doble
-        let obj2 = { value: {} };  // Tipo: Objeto
-
-        // Calentamos el compilador
-        for (let i = 0; i < 100000; i++) {
-            confuse(obj1);
-            if (i % 50000 === 0) confuse(obj2);
-        }
-        
-        this.log("✓ Prueba JIT finalizada. Revisa si el navegador se ralentiza.");
+        if(found === 0) this.log("No se encontraron punteros directos. El ASLR está activo.");
     }
 };
-
-window.onload = () => Research.log("Consola de Investigación iniciada. UA: " + navigator.userAgent);
