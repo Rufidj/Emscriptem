@@ -2,41 +2,43 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>PS5 Research Lab v3.0 - Integrity Suite</title>
+    <title>PS5 Research Lab v3.5 - Advanced Suite</title>
     <style>
         body { background: #050505; color: #00ff41; font-family: 'Courier New', monospace; padding: 20px; }
         #log { 
-            background: #000; border: 1px solid #00ff41; height: 400px; 
+            background: #000; border: 1px solid #00ff41; height: 450px; 
             overflow-y: scroll; padding: 15px; margin-bottom: 20px;
             white-space: pre-wrap; font-size: 12px; color: #0f0;
-            box-shadow: inset 0 0 10px #00ff4133;
+            box-shadow: inset 0 0 15px #00ff4133;
         }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         button { 
             background: #111; color: #00ff41; border: 1px solid #00ff41; 
             padding: 15px; cursor: pointer; font-weight: bold; font-size: 13px;
-            text-transform: uppercase;
+            text-transform: uppercase; transition: 0.2s;
         }
         button:hover { background: #00ff41; color: #000; }
         .version-tag { color: #444; font-size: 10px; text-align: right; margin-top: 5px; }
-        .highlight { color: #fff; font-weight: bold; }
+        .danger { border-color: #ff4444 !important; color: #ff4444 !important; }
+        .danger:hover { background: #ff4444 !important; color: #000 !important; }
     </style>
 </head>
 <body>
     <h2>🎮 PS5 WEBKIT RESEARCH LAB</h2>
-    <div id="log">>> Cargando suite de investigación...</div>
+    <div id="log">>> Suite v3.5 lista para ejecución...</div>
 
     <div class="grid">
         <button onclick="Lab.spray()">1. HEAP SPRAY (Agresivo)</button>
-        <button onclick="Lab.testUAF()">2. UAF PERSISTENCE TEST</button>
+        <button onclick="Lab.testUAF()">2. UAF PERSISTENCE</button>
         <button onclick="Lab.scan800()">3. SCAN PUNTEROS 0x800</button>
-        <button onclick="Lab.leakCheck()">4. INTEGRITY CHECK (Cualquier Leak)</button>
-        <button onclick="Lab.jitChaos()">5. JIT OPTIMIZATION CHAOS</button>
+        <button onclick="Lab.leakCheck()">4. INTEGRITY CHECK</button>
+        <button onclick="Lab.jitChaos()">5. JIT CHAOS</button>
+        <button onclick="Lab.forceOOB()" class="danger">6. ARRAY BUFFER OOB</button>
         <button onclick="Lab.clearLog()">LIMPIAR LOGS</button>
-        <button onclick="location.reload()" style="border-color:#f00; color:#f00;">RECARGAR (LIMPIAR CACHÉ)</button>
+        <button onclick="location.reload()" class="danger">RECARGAR TODO</button>
     </div>
     
-    <div class="version-tag">Build: 2026-04-13_V3.0_INTEGRITY</div>
+    <div class="version-tag">Build: 2026-04-13_V3.5_OOB_ASYNC</div>
 
     <script src="coi-serviceworker.js"></script>
 
@@ -52,108 +54,104 @@
             },
 
             clearLog: function() {
-                document.getElementById('log').textContent = ">> Consola reseteada.\n";
+                document.getElementById('log').textContent = ">> Consola limpia.\n";
             },
 
-            // 1. Spray: Ocupamos la RAM con el patrón 0x41414141 (AAAA)
-            spray: function() {
-                this.log("Iniciando Heap Spray de 300MB...");
+            // 1. Ocupar la memoria RAM
+            spray: async function() {
+                this.log("Iniciando Heap Spray (300MB)...");
                 try {
                     for(let i=0; i<300; i++) {
-                        let b = new Uint32Array(1024 * 256); // 1MB por bloque
+                        let b = new Uint32Array(1024 * 256); 
                         b.fill(0x41414141); 
                         this.blobs.push(b);
-                    }
-                    this.log("✓ Spray completado. Memoria bajo presión.");
-                } catch(e) { this.log("✗ Fallo en Spray (Límite alcanzado): " + e.message); }
-            },
-
-            // 2. Test de persistencia de punteros
-            testUAF: function() {
-                this.log("Ejecutando Test de persistencia UAF...");
-                let obj = { data: new Uint32Array(16).fill(0x1337) };
-                let ref = obj; 
-                obj = null; 
-                
-                // Forzamos presión de memoria para activar el GC
-                for(let i=0; i<10000; i++) { let junk = { a: i }; }
-
-                if(ref && ref.data[0] === 0x1337) {
-                    this.log("✓ INTERESANTE: El objeto persiste tras la recolección.");
-                } else {
-                    this.log("✗ OBJETO LIMPIADO.");
-                }
-            },
-
-            // 3. Escaneo asíncrono del rango clásico 0x800
-            scan800: async function() {
-                this.log("Escaneando direcciones de librerías (0x800...)...");
-                let count = 0;
-                for (let idx = 0; idx < this.blobs.length; idx++) {
-                    let buf = this.blobs[idx];
-                    for (let i = 0; i < buf.length; i++) {
-                        let val = buf[i];
-                        if (val >= 0x80000000 && val <= 0x8FFFFFFF) {
-                            this.log(`!!! LEAK ENCONTRADO: Bloque ${idx} -> 0x${val.toString(16)}`);
-                            count++;
+                        if(i % 50 === 0) {
+                            this.log(`  - Cargados ${i}MB...`);
+                            await new Promise(r => setTimeout(r, 1));
                         }
                     }
-                    // Pausa para evitar el congelamiento de la PS5
-                    if (idx % 20 === 0) await new Promise(r => setTimeout(r, 1));
-                }
-                this.log(count > 0 ? `✓ Escaneo finalizado: ${count} leaks.` : "✗ No se detectaron punteros 0x800.");
+                    this.log("✓ Spray completado con éxito.");
+                } catch(e) { this.log("✗ Límite de Sandbox: " + e.message); }
             },
 
-            // 4. Escaneo de integridad: Busca CUALQUIER cambio en el patrón
-            leakCheck: async function() {
-                this.log("Iniciando Escaneo de Integridad Total...");
-                let anomalies = 0;
-                
+            // 2. Comprobar si los objetos "muertos" siguen vivos
+            testUAF: function() {
+                this.log("Testeando persistencia de punteros (UAF)...");
+                let obj = { x: new Uint32Array(16).fill(0x1337) };
+                let ref = obj; 
+                obj = null; 
+                for(let i=0; i<10000; i++) { let j = { a: i }; }
+                if(ref && ref.x[0] === 0x1337) this.log("✓ PERSISTENTE: Referencia detectada.");
+                else this.log("✗ OBJETO LIMPIADO.");
+            },
+
+            // 3. Escaneo asíncrono de librerías
+            scan800: async function() {
+                this.log("Escaneando rangos 0x800... (Sin congelamiento)");
+                let found = 0;
                 for (let idx = 0; idx < this.blobs.length; idx++) {
                     let buf = this.blobs[idx];
                     for (let i = 0; i < buf.length; i++) {
-                        // Buscamos cualquier cosa que no sea nuestro spray ni cero
+                        if (buf[i] >= 0x80000000 && buf[i] <= 0x8FFFFFFF) {
+                            this.log(`!!! LEAK: Bloque ${idx} -> 0x${buf[i].toString(16)}`);
+                            found++;
+                        }
+                    }
+                    if (idx % 20 === 0) await new Promise(r => setTimeout(r, 1));
+                }
+                this.log(found > 0 ? `✓ Encontrados ${found} punteros.` : "✗ No hay punteros filtrados.");
+            },
+
+            // 4. Buscar CUALQUIER cambio (Colisiones de memoria)
+            leakCheck: async function() {
+                this.log("Escaneando integridad total (AAAA)...");
+                let anomalies = 0;
+                for (let idx = 0; idx < this.blobs.length; idx++) {
+                    let buf = this.blobs[idx];
+                    for (let i = 0; i < buf.length; i++) {
                         if (buf[i] !== 0x41414141 && buf[i] !== 0) {
-                            this.log(`!!! ANOMALÍA: Bloque ${idx}, Offset ${i} -> Valor: 0x${buf[i].toString(16)}`);
+                            this.log(`!!! ANOMALÍA: Bloque ${idx} -> Valor: 0x${buf[i].toString(16)}`);
                             anomalies++;
                         }
                     }
                     if (idx % 20 === 0) await new Promise(r => setTimeout(r, 1));
                 }
-                this.log(anomalies === 0 ? "✗ Memoria íntegra. No hay fugas." : `✓ ¡ANOMALÍAS DETECTADAS: ${anomalies}!`);
+                this.log(anomalies === 0 ? "✗ Memoria íntegra." : `✓ Detectadas ${anomalies} anomalías.`);
             },
 
-            // 5. Caos JIT: Intento de confusión de tipos
+            // 5. Test JIT
             jitChaos: function() {
-                this.log("Iniciando Caos de Optimización JIT...");
-                
-                function compiler(obj, mode) {
-                    if (mode === "math") return obj.val + 0.5;
-                    return obj.val;
-                }
-
-                let num = { val: 1.1 };
-                let ptr = { val: { a: 1 } };
-
-                // Entrenamos al compilador JIT con números
-                for(let i=0; i<100000; i++) { compiler(num, "math"); }
-
-                // Cambio repentino de tipo para buscar el error lógico
+                this.log("Ejecutando Caos JIT...");
+                function compiler(obj, m) { return m === 1 ? obj.v + 0.5 : obj.v; }
+                let n = { v: 1.1 }, p = { v: { a: 1 } };
+                for(let i=0; i<100000; i++) { compiler(n, 1); }
                 try {
-                    let res = compiler(ptr, "leak");
-                    this.log("Resultado JIT: " + res);
-                    if (typeof res === 'number' && res > 1000) {
-                        this.log("!!! POSIBLE DIRECCIÓN LEKEADA POR JIT: " + res);
+                    let r = compiler(p, 0);
+                    this.log("Resultado JIT: " + r);
+                } catch(e) { this.log("Motor bloqueado: " + e.message); }
+            },
+
+            // 6. Nuevo Test de Desbordamiento Out of Bounds
+            forceOOB: function() {
+                this.log("Iniciando Buffer Detachment OOB...");
+                let a = new Uint32Array(100).fill(0x1337);
+                try {
+                    let w = new Worker(URL.createObjectURL(new Blob([''])));
+                    w.postMessage(a.buffer, [a.buffer]); // Transferimos el control
+                    this.log("Buffer transferido. Longitud: " + a.byteLength);
+                    if (a[0] !== 0 && a.byteLength === 0) {
+                        this.log("!!! ANOMALÍA OOB: Acceso a buffer huérfano!");
+                        this.log("Valor residual: 0x" + a[0].toString(16));
+                    } else {
+                        this.log("Estado: Estable.");
                     }
-                } catch(e) {
-                    this.log("Motor estable: " + e.message);
-                }
+                } catch(e) { this.log("Error: " + e.message); }
             }
         };
 
         window.onload = () => {
-            Lab.log("Laboratorio V3.0 Cargado.");
-            Lab.log("UA: " + navigator.userAgent);
+            Lab.log("Investigación V3.5 Iniciada.");
+            Lab.log("Plataforma: " + navigator.platform);
         };
     </script>
 </body>
