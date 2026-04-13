@@ -2,114 +2,158 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>PS5 Research Lab v2.5 - INVESTIGACIÓN</title>
+    <title>PS5 Research Lab v3.0 - Integrity Suite</title>
     <style>
-        body { background: #0a0a0a; color: #00ff41; font-family: 'Courier New', monospace; padding: 20px; }
+        body { background: #050505; color: #00ff41; font-family: 'Courier New', monospace; padding: 20px; }
         #log { 
-            background: #000; border: 1px solid #00ff41; height: 450px; 
+            background: #000; border: 1px solid #00ff41; height: 400px; 
             overflow-y: scroll; padding: 15px; margin-bottom: 20px;
             white-space: pre-wrap; font-size: 12px; color: #0f0;
+            box-shadow: inset 0 0 10px #00ff4133;
         }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         button { 
             background: #111; color: #00ff41; border: 1px solid #00ff41; 
-            padding: 15px; cursor: pointer; font-weight: bold;
+            padding: 15px; cursor: pointer; font-weight: bold; font-size: 13px;
+            text-transform: uppercase;
         }
         button:hover { background: #00ff41; color: #000; }
-        .version-tag { color: #555; font-size: 10px; text-align: right; }
+        .version-tag { color: #444; font-size: 10px; text-align: right; margin-top: 5px; }
+        .highlight { color: #fff; font-weight: bold; }
     </style>
 </head>
 <body>
     <h2>🎮 PS5 WEBKIT RESEARCH LAB</h2>
-    <div class="version-tag">Build: 2026-04-13_V2.5</div>
-    
-    <div id="log">>> Cargando sistema de logs...</div>
+    <div id="log">>> Cargando suite de investigación...</div>
 
     <div class="grid">
-        <button onclick="Lab.spray()">1. HEAP SPRAY (300MB)</button>
-        <button onclick="Lab.testUAF()">2. TRIGGER UAF TEST</button>
+        <button onclick="Lab.spray()">1. HEAP SPRAY (Agresivo)</button>
+        <button onclick="Lab.testUAF()">2. UAF PERSISTENCE TEST</button>
         <button onclick="Lab.scan800()">3. SCAN PUNTEROS 0x800</button>
-        <button onclick="Lab.leakCheck()">4. LEAK CHECK (EXPERIMENTAL)</button>
-        <button onclick="Lab.clearLog()">LIMPIAR CONSOLA</button>
-        <button onclick="location.reload()" style="border-color:#f00; color:#f00;">FORZAR RECARGA</button>
+        <button onclick="Lab.leakCheck()">4. INTEGRITY CHECK (Cualquier Leak)</button>
+        <button onclick="Lab.jitChaos()">5. JIT OPTIMIZATION CHAOS</button>
+        <button onclick="Lab.clearLog()">LIMPIAR LOGS</button>
+        <button onclick="location.reload()" style="border-color:#f00; color:#f00;">RECARGAR (LIMPIAR CACHÉ)</button>
     </div>
+    
+    <div class="version-tag">Build: 2026-04-13_V3.0_INTEGRITY</div>
+
+    <script src="coi-serviceworker.js"></script>
 
     <script>
-        // Sistema de protección para que el log siempre funcione
         const Lab = {
             blobs: [],
+
             log: function(msg) {
                 const l = document.getElementById('log');
-                if(!l) { console.error(msg); return; }
+                if(!l) return;
                 l.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
                 l.scrollTop = l.scrollHeight;
             },
 
             clearLog: function() {
-                document.getElementById('log').textContent = ">> Consola limpia.\n";
+                document.getElementById('log').textContent = ">> Consola reseteada.\n";
             },
 
+            // 1. Spray: Ocupamos la RAM con el patrón 0x41414141 (AAAA)
             spray: function() {
-                this.log("Iniciando Heap Spray agresivo...");
+                this.log("Iniciando Heap Spray de 300MB...");
                 try {
                     for(let i=0; i<300; i++) {
-                        let b = new Uint32Array(1024 * 256); 
+                        let b = new Uint32Array(1024 * 256); // 1MB por bloque
                         b.fill(0x41414141); 
                         this.blobs.push(b);
                     }
-                    this.log("✓ Spray de 300MB completado. RAM estresada.");
-                } catch(e) { this.log("✗ Fallo en Spray: " + e.message); }
+                    this.log("✓ Spray completado. Memoria bajo presión.");
+                } catch(e) { this.log("✗ Fallo en Spray (Límite alcanzado): " + e.message); }
             },
 
+            // 2. Test de persistencia de punteros
             testUAF: function() {
-                this.log("Iniciando Test UAF...");
-                let target = { ptr: new Uint32Array(10).fill(0x1337) };
-                let backup = target; 
-                target = null; 
+                this.log("Ejecutando Test de persistencia UAF...");
+                let obj = { data: new Uint32Array(16).fill(0x1337) };
+                let ref = obj; 
+                obj = null; 
                 
-                // Intentamos engañar al Garbage Collector
-                for(let i=0; i<10000; i++) { let temp = { garbage: i }; }
+                // Forzamos presión de memoria para activar el GC
+                for(let i=0; i<10000; i++) { let junk = { a: i }; }
 
-                if(backup && backup.ptr[0] === 0x1337) {
-                    this.log("✓ PERSISTENCIA DETECTADA: El objeto sigue en RAM.");
+                if(ref && ref.data[0] === 0x1337) {
+                    this.log("✓ INTERESANTE: El objeto persiste tras la recolección.");
                 } else {
                     this.log("✗ OBJETO LIMPIADO.");
                 }
             },
 
-            scan800: function() {
+            // 3. Escaneo asíncrono del rango clásico 0x800
+            scan800: async function() {
                 this.log("Escaneando direcciones de librerías (0x800...)...");
                 let count = 0;
-                this.blobs.forEach((buf, idx) => {
-                    for(let i=0; i<buf.length; i++) {
+                for (let idx = 0; idx < this.blobs.length; idx++) {
+                    let buf = this.blobs[idx];
+                    for (let i = 0; i < buf.length; i++) {
                         let val = buf[i];
-                        if(val >= 0x80000000 && val <= 0x8FFFFFFF) {
-                            this.log(`!!! LEAK: Bloque ${idx} -> 0x${val.toString(16)}`);
+                        if (val >= 0x80000000 && val <= 0x8FFFFFFF) {
+                            this.log(`!!! LEAK ENCONTRADO: Bloque ${idx} -> 0x${val.toString(16)}`);
                             count++;
                         }
                     }
-                });
-                if(count === 0) this.log("✗ No se encontraron punteros filtrados.");
+                    // Pausa para evitar el congelamiento de la PS5
+                    if (idx % 20 === 0) await new Promise(r => setTimeout(r, 1));
+                }
+                this.log(count > 0 ? `✓ Escaneo finalizado: ${count} leaks.` : "✗ No se detectaron punteros 0x800.");
             },
 
-            leakCheck: function() {
-                this.log("Buscando anomalías de memoria...");
-                // Buscamos cualquier cosa que NO sea nuestro 0x41414141
+            // 4. Escaneo de integridad: Busca CUALQUIER cambio en el patrón
+            leakCheck: async function() {
+                this.log("Iniciando Escaneo de Integridad Total...");
                 let anomalies = 0;
-                this.blobs.slice(0, 10).forEach((buf, idx) => {
-                    if(buf[0] !== 0x41414141) {
-                        this.log(`!!! ANOMALÍA en Bloque ${idx}: 0x${buf[0].toString(16)}`);
-                        anomalies++;
+                
+                for (let idx = 0; idx < this.blobs.length; idx++) {
+                    let buf = this.blobs[idx];
+                    for (let i = 0; i < buf.length; i++) {
+                        // Buscamos cualquier cosa que no sea nuestro spray ni cero
+                        if (buf[i] !== 0x41414141 && buf[i] !== 0) {
+                            this.log(`!!! ANOMALÍA: Bloque ${idx}, Offset ${i} -> Valor: 0x${buf[i].toString(16)}`);
+                            anomalies++;
+                        }
                     }
-                });
-                if(anomalies === 0) this.log("Memoria íntegra.");
+                    if (idx % 20 === 0) await new Promise(r => setTimeout(r, 1));
+                }
+                this.log(anomalies === 0 ? "✗ Memoria íntegra. No hay fugas." : `✓ ¡ANOMALÍAS DETECTADAS: ${anomalies}!`);
+            },
+
+            // 5. Caos JIT: Intento de confusión de tipos
+            jitChaos: function() {
+                this.log("Iniciando Caos de Optimización JIT...");
+                
+                function compiler(obj, mode) {
+                    if (mode === "math") return obj.val + 0.5;
+                    return obj.val;
+                }
+
+                let num = { val: 1.1 };
+                let ptr = { val: { a: 1 } };
+
+                // Entrenamos al compilador JIT con números
+                for(let i=0; i<100000; i++) { compiler(num, "math"); }
+
+                // Cambio repentino de tipo para buscar el error lógico
+                try {
+                    let res = compiler(ptr, "leak");
+                    this.log("Resultado JIT: " + res);
+                    if (typeof res === 'number' && res > 1000) {
+                        this.log("!!! POSIBLE DIRECCIÓN LEKEADA POR JIT: " + res);
+                    }
+                } catch(e) {
+                    this.log("Motor estable: " + e.message);
+                }
             }
         };
 
-        // Verificación de inicio
         window.onload = () => {
-            Lab.log("Laboratorio de Investigación Iniciado.");
-            Lab.log("Navegador: " + navigator.userAgent);
+            Lab.log("Laboratorio V3.0 Cargado.");
+            Lab.log("UA: " + navigator.userAgent);
         };
     </script>
 </body>
